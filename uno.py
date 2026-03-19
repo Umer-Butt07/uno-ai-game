@@ -1,5 +1,3 @@
-import tkinter as tk
-from tkinter import font as tkfont
 import random
 from collections import Counter
 
