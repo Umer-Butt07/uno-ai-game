@@ -309,4 +309,40 @@ class UnoGUI:
         self.log.tag_configure('sys', foreground='#FFD54F')
         self.log.tag_configure('win', foreground='#FFD600',
                                font=tkfont.Font(family="Consolas", size=11, weight="bold"))
+    
+    # CARD DRAWING 
+    def _draw_card(self, canvas, x, y, card, w=CW, h=CH, clickable=False, idx=None):
+        bg_c = CARD_COLORS.get(card.color, '#D32F2F')
+        r = 7
+        ids = []
+        ids.append(canvas.create_rectangle(x+r, y, x+w-r, y+h, fill=bg_c, outline='#FFF', width=1))
+        ids.append(canvas.create_rectangle(x, y+r, x+w, y+h-r, fill=bg_c, outline='#FFF', width=1))
+        for cx2, cy2 in [(x, y), (x+w-2*r, y), (x, y+h-2*r), (x+w-2*r, y+h-2*r)]:
+            ids.append(canvas.create_oval(cx2, cy2, cx2+2*r, cy2+2*r, fill=bg_c, outline='#FFF', width=1))
+        ids.append(canvas.create_rectangle(x+3, y+3, x+w-3, y+h-3, fill=bg_c, outline=''))
+        ow, oh = w*0.6, h*0.42
+        ox, oy = x+(w-ow)/2, y+(h-oh)/2
+        ids.append(canvas.create_oval(ox, oy, ox+ow, oy+oh, fill='white', outline=''))
+        txt = 'S' if card.is_skip else card.value
+        ids.append(canvas.create_text(x+w/2, y+h/2, text=txt, font=self.f_card, fill=bg_c))
+        ids.append(canvas.create_text(x+10, y+12, text=txt, font=self.f_card_sm, fill='white'))
+        ids.append(canvas.create_text(x+w-10, y+h-12, text=txt, font=self.f_card_sm, fill='white'))
+        if clickable and idx is not None:
+            for item_id in ids:
+                canvas.tag_bind(item_id, '<Button-1>', lambda e, i=idx: self._human_card(i))
+
+    def _render_hand(self, canvas, cards, clickable=False, legal_idx=None):
+        canvas.delete("all")
+        if not cards:
+            canvas.create_text(150, 50, text="No cards!", font=self.f_info, fill=TXT_C)
+            return
+        canvas.update_idletasks()
+        cw_total = canvas.winfo_width() or 300
+        n = len(cards)
+        spacing = min(CW + 6, max(20, (cw_total - 16 - CW) // max(n - 1, 1)))
+        start_x = max(8, (cw_total - CW - (n - 1) * spacing) // 2)
+        for i, card in enumerate(cards):
+            click = clickable and (legal_idx is None or i in legal_idx)
+            self._draw_card(canvas, start_x + i * spacing, 8, card, clickable=click, idx=i)
+
 
