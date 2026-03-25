@@ -345,4 +345,72 @@ class UnoGUI:
             click = clickable and (legal_idx is None or i in legal_idx)
             self._draw_card(canvas, start_x + i * spacing, 8, card, clickable=click, idx=i)
 
+    #  REFRESH 
+    def _refresh(self):
+        if not self.state:
+            return
+        self.cv_top.delete("all")
+        self._draw_card(self.cv_top, 2, 2, self.state.top_card, w=58, h=82)
+        self.lbl_deck.config(text=f"Deck: {len(self.state.deck)} cards remaining")
+
+        for p in range(3):
+            cards = self.state.hands[p]
+            if p == 2 and self.waiting_human:
+                legal = get_legal_moves(self.state, 2)
+                if legal != ['draw']:
+                    legal_idx = {i for i, c in enumerate(cards) if c in legal}
+                    self._render_hand(self.p_canvas[p], cards, clickable=True, legal_idx=legal_idx)
+                else:
+                    self._render_hand(self.p_canvas[p], cards)
+            else:
+                self._render_hand(self.p_canvas[p], cards)
+            self.p_labels[p].config(text=f"{len(cards)} cards")
+
+        for p in range(3):
+            if p == self.state.current_player and not self.game_over:
+                self.p_frames[p].config(highlightbackground=TITLE_C, highlightthickness=3)
+            else:
+                self.p_frames[p].config(highlightthickness=0)
+
+    def _log(self, msg, tag='sys'):
+        self.log.config(state=tk.NORMAL)
+        self.log.insert(tk.END, msg + "\n", tag)
+        self.log.see(tk.END)
+        self.log.config(state=tk.DISABLED)
+
+    def _enable_draw_btn(self):
+        #Enable the Draw Card button (orange, clickable)."""
+        self.btn_draw.config(state=tk.NORMAL, bg='#FF8F00')
+
+    def _disable_draw_btn(self):
+        #Disable the Draw Card button (greyed out)."""
+        self.btn_draw.config(state=tk.DISABLED, bg='#666666')
+
+    def _mode_changed(self):
+        self.sim_mode = (self.mode_var.get() == "simulation")
+        self._log(f"Mode -> {'Simulation' if self.sim_mode else 'Manual'}", 'sys')
+
+    # NEW GAME
+    def new_game(self):
+        self.auto_playing = False
+        self.btn_auto.config(text="Auto-Play", bg='#1E88E5')
+        self.game_over = False
+        self.waiting_human = False
+        self.turn = 0
+        self.consecutive_passes = 0
+        self.state = initialize_game()
+        self.sim_mode = (self.mode_var.get() == "simulation")
+        self._disable_draw_btn()
+        self.log.config(state=tk.NORMAL)
+        self.log.delete(1.0, tk.END)
+        self.log.config(state=tk.DISABLED)
+        mode_s = "Simulation" if self.sim_mode else "Manual"
+        self._log(f"=== New Game  (P3: {mode_s}) ===", 'sys')
+        self._log(f"Top card: {self.state.top_card}   Deck: {len(self.state.deck)}", 'sys')
+        self._refresh()
+        if not self.sim_mode:
+            # Manual mode: auto-run AI turns until P3's turn
+            self.root.after(300, self._run_until_human)
+
+
 
