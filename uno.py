@@ -412,5 +412,101 @@ class UnoGUI:
             # Manual mode: auto-run AI turns until P3's turn
             self.root.after(300, self._run_until_human)
 
+    def _run_until_human(self):
+        #Auto-run AI turns until it's P3's turn in manual mode.
+        if self.game_over or self.waiting_human:
+            return
+        current = self.state.current_player
+        if current == 2:
+            # It's P3's turn — prompt human
+            self._prompt_human()
+            return
+        # Run one AI turn
+        self.next_turn()
+
+    def _prompt_human(self):
+        #Prompt P3 to play in manual mode.
+        self.turn += 1
+        self.waiting_human = True
+        legal = get_legal_moves(self.state, 2)
+        if legal == ['draw']:
+            self._log(f"Turn {self.turn}: P3 -- No valid cards! Click 'Draw Card'.", 'p3')
+            self._enable_draw_btn()
+        else:
+            self._log(f"Turn {self.turn}: P3 -- Click a card to play.", 'p3')
+            self._disable_draw_btn()
+        self._refresh()
+
+    # NEXT TURN 
+    def next_turn(self):
+        if self.game_over:
+            self._log("Game over! Click 'New Game'.", 'sys')
+            return
+        if self.waiting_human:
+            self._log("Your turn! Click a card to play or 'Draw Card'.", 'sys')
+            return
+
+        current = self.state.current_player
+
+        # If it's P3's turn in manual mode, prompt immediately
+        if current == 2 and not self.sim_mode:
+            self._prompt_human()
+            return
+
+        self.turn += 1
+        tag = ['p1', 'p2', 'p3'][current]
+
+        # AI TURN 
+        if current == 0:
+            score, move = minimax(self.state, 2, 0)
+            info = f"[Minimax] Score: {score}"
+        elif current == 1:
+            score, move = expectimax(self.state, 3, 1)
+            info = f"[Expectimax] Score: {score:.1f}"
+        else:
+            score, move = minimax(self.state, 2, 2)
+            info = f"[Minimax-Sim] Score: {score}"
+
+        # APPLY MOVE 
+        pn = f"P{current + 1}"
+        if move == 'draw':
+            had_cards = len(self.state.hands[current])
+            self.state = apply_move(self.state, current, move)
+            now_cards = len(self.state.hands[current])
+            if now_cards > had_cards:
+                new_card = self.state.hands[current][-1]
+                self._log(f"Turn {self.turn}: {pn} no valid card -> draws {new_card}.  {info}", tag)
+                self.consecutive_passes = 0
+            else:
+                self._log(f"Turn {self.turn}: {pn} no valid card & deck empty -> passes.  {info}", tag)
+                self.consecutive_passes += 1
+        else:
+            self._log(f"Turn {self.turn}: {pn} plays {move}.  {info}", tag)
+            if move.is_skip:
+                skipped = (current + 1) % 3
+                self._log(f"  >> SKIP! P{skipped + 1} loses their turn!", 'sys')
+            self.state = apply_move(self.state, current, move)
+            self.consecutive_passes = 0
+
+        self._refresh()
+        if self._check_win():
+            return
+        if self.consecutive_passes >= 3:
+            self._end_stalemate()
+            return
+
+        # After AI turn: if next is P3 manual, auto-prompt them
+        if self.state.current_player == 2 and not self.sim_mode:
+            self.root.after(200, self._prompt_human)
+            return
+
+        # In manual mode, keep running AI turns automatically
+        if not self.sim_mode and not self.game_over:
+            self.root.after(300, self._run_until_human)
+            return
+
+        if self.auto_playing and not self.game_over:
+            self.root.after(350, self.next_turn)
+
 
 
