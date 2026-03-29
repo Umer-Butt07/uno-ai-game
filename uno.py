@@ -508,5 +508,142 @@ class UnoGUI:
         if self.auto_playing and not self.game_over:
             self.root.after(350, self.next_turn)
 
+     # HUMAN INPUT
+    def _human_card(self, idx):
+        if not self.waiting_human:
+            return
+        card = self.state.hands[2][idx]
+        legal = get_legal_moves(self.state, 2)
+        if legal == ['draw'] or card not in legal:
+            self._log("  Invalid card! Choose a valid one.", 'sys')
+            return
+        self.waiting_human = False
+        self._disable_draw_btn()
+        self._log(f"Turn {self.turn}: P3 plays {card}.  [Human]", 'p3')
+        if card.is_skip:
+            self._log(f"  >> SKIP! P{(2+1)%3+1} loses their turn!", 'sys')
+        self.state = apply_move(self.state, 2, card)
+        self.consecutive_passes = 0
+        self._refresh()
+        if self._check_win():
+            return
+        if self.consecutive_passes >= 3:
+            self._end_stalemate()
+            return
+        # Auto-chain: run next AI turns, then prompt P3 again
+        if not self.game_over:
+            self.root.after(300, self.next_turn)
+
+    def _human_draw(self):
+        if not self.waiting_human:
+            return
+        self.waiting_human = False
+        self._disable_draw_btn()
+        had = len(self.state.hands[2])
+        self.state = apply_move(self.state, 2, 'draw')
+        now = len(self.state.hands[2])
+        if now > had:
+            new_card = self.state.hands[2][-1]
+            self._log(f"Turn {self.turn}: P3 draws {new_card}.  [Human]", 'p3')
+            self.consecutive_passes = 0
+        else:
+            self._log(f"Turn {self.turn}: P3 deck empty -> passes.  [Human]", 'p3')
+            self.consecutive_passes += 1
+        self._refresh()
+        if self._check_win():
+            return
+        if self.consecutive_passes >= 3:
+            self._end_stalemate()
+            return
+        # Auto-chain: run next AI turns
+        if not self.game_over:
+            self.root.after(300, self.next_turn)
+
+    def _check_win(self):
+        for p in range(3):
+            if len(self.state.hands[p]) == 0:
+                self.game_over = True
+                self.auto_playing = False
+                self.btn_auto.config(text="Auto-Play", bg='#1E88E5')
+                self._log(f"\n*** PLAYER {p+1} WINS in {self.turn} turns! ***", 'win')
+                self._refresh()
+                return True
+        return False
+
+    def _end_stalemate(self):
+        """End game when no one can play and deck is empty."""
+        self.game_over = True
+        self.auto_playing = False
+        self.btn_auto.config(text="Auto-Play", bg='#1E88E5')
+        # Player with fewest cards wins in stalemate
+        counts = {p: len(self.state.hands[p]) for p in range(3)}
+        winner = min(counts, key=counts.get)
+        self._log(f"\n--- STALEMATE! Deck empty, no one can play. ---", 'sys')
+        self._log(f"Cards remaining: P1={counts[0]}, P2={counts[1]}, P3={counts[2]}", 'sys')
+        self._log(f"*** PLAYER {winner+1} WINS (fewest cards: {counts[winner]})! ***", 'win')
+        self._refresh()
+
+    # ---- AUTO-PLAY ----
+    def toggle_auto(self):
+        if self.game_over:
+            return
+        self.auto_playing = not self.auto_playing
+        if self.auto_playing:
+            self.btn_auto.config(text="Stop", bg='#E53935')
+            self.next_turn()
+        else:
+            self.btn_auto.config(text="Auto-Play", bg='#1E88E5')
+
+
+if __name__ == '__main__':
+    root = tk.Tk()
+    app = UnoGUI(root)
+    root.mainloop()
+
+
+def _build_ui(self):
+    # TITLE + MODE
+    top_bar = tk.Frame(self.root, bg=BG)
+    top_bar.pack(fill=tk.X, padx=10, pady=(6, 2))
+
+    tk.Label(top_bar, text="UNO  GAME  AI", font=self.f_title,
+             fg=TITLE_C, bg=BG).pack(side=tk.LEFT, padx=(10, 30))
+
+    tk.Label(top_bar, text="P3 Mode:", font=self.f_info,
+             fg=TXT_C, bg=BG).pack(side=tk.LEFT)
+
+    self.mode_var = tk.StringVar(value="simulation")
+
+    # ✅ ONLY radio buttons inside loop
+    for txt, val in [("Simulation", "simulation"), ("Manual", "manual")]:
+        tk.Radiobutton(
+            top_bar,
+            text=txt,
+            variable=self.mode_var,
+            value=val,
+            font=self.f_info,
+            fg=TXT_C,
+            bg=BG,
+            selectcolor=BG_DARK,
+            activebackground=BG,
+            activeforeground=TITLE_C,
+            command=self._mode_changed
+        ).pack(side=tk.LEFT, padx=3)
+
+    # ✅ NOW OUTSIDE LOOP — TOP CARD UI
+    tc_frame = tk.Frame(self.root, bg=BG)
+    tc_frame.pack(pady=(2, 2))
+
+    tk.Label(tc_frame, text="TOP CARD", font=self.f_header,
+             fg='#EF5350', bg=BG).pack(side=tk.LEFT, padx=(0, 5))
+
+    self.cv_top = tk.Canvas(tc_frame, width=62, height=86,
+                            bg=BG, highlightthickness=0)
+    self.cv_top.pack(side=tk.LEFT)
+
+    self.lbl_deck = tk.Label(tc_frame, text="",
+                             font=self.f_info, fg=TXT_C, bg=BG)
+    self.lbl_deck.pack(side=tk.LEFT, padx=(10, 0))
+
 
 
